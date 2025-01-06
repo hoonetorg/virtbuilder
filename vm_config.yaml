@@ -1,0 +1,27 @@
+vm:
+  name: "win10"
+  vcpus: 4
+  memory: 16384
+  os_variant: "win10"
+
+ramdisk:
+  path: "/ramdisk"
+  size: "30G"
+
+disks:
+  osdisk:
+    uri: "/ramdisk/win10.osdisk.raw"
+    format: "raw"
+    size: "20G"
+
+  provisioningdisk:
+    uri: "/ramdisk/win10.provision.raw"
+    format: "raw"
+    imgfile: "/var/lib/libvirt/images/provision.img"
+    imgformat: "raw"
+
+network:
+  type: "nat"
+  mac: "52:54:00:dd:a1:0a"
+  parent_interface: "enp58s0u1u3u3"
+
