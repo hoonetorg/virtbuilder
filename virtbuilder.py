@@ -179,8 +179,12 @@ def recreate_disk(disk) -> None:
     else:
         create_disk(disk['uri'], disk['size'], disk['format'])
 
+def create_ignition_config() -> None:
+    # TODO
+    pass
 
-def handle_vm_type(vm_type):
+
+def handle_vm_type(vm_type) -> None:
     match vm_type:
         case "linux":
             print("[INFO] Handling Linux VM")
@@ -191,13 +195,13 @@ def handle_vm_type(vm_type):
         case "flatcar":
             print("[INFO] Handling Flatcar VM")
             # Flatcar-specific setup logic
+            create_ignition_config()
         case "generic":
             print("[INFO] Handling Generic VM")
             # Generic VM setup logic
         case _:
             print(f"[WARN] Unknown VM type: {vm_type}")
-            # Handle unknown cases
-
+            sys.exit(1)
 
 
 def main():
@@ -216,10 +220,13 @@ def main():
 
     print(f"vmconfig: {vmconfig}")
 
-    exit 
     vm = vmconfig['vm']
     disks = vmconfig['disks']
     ramdisk = vmconfig['ramdisk']
+    network = vmconfig['network']
+
+    # TODO
+    #handle_vm_type(vm['type'])
 
     vm_name = vm['name']
     osdisk = disks['osdisk']
@@ -236,8 +243,6 @@ def main():
     for disk_key, disk_value in disks.items():
         recreate_disk(disk_value)
 
-    #handle_vm_type("linux")  # Outputs: [INFO] Handling Linux VM
-    #handle_vm_type("macos")  # Outputs: [WARN] Unknown VM type: macos
     # Build virt-install command
     virtinstall_cmd = [
         "virt-install",
@@ -259,11 +264,36 @@ def main():
         )
 
     # Add network configuration
-    network = vmconfig['network']
-    if network['type'] == "nat":
-        virtinstall_cmd.append(f"--network default,mac={network['mac']},model=virtio")
-    elif network['type'] == "bridge":
+    match network['type']:
+        case "nat":
+            virtinstall_cmd.append(f"--network default,mac={network['mac']},model=virtio")
+        case "isolated":
+            virtinstall_cmd.append(f"--network isolated,mac={network['mac']},model=virtio")
+        case "bridge":
         virtinstall_cmd.append(f"--network bridge={network['parent_interface']},mac={network['mac']},model=virtio")
+        case "macvtap":
+            virtinstall_cmd.append(f"--network type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
+        case "ipvtab":
+            subprocess_run_wrapper(
+                    [
+                        "ip", "link", "add",
+                        "name", "ipvtap0",
+                        "link",  network['parent_interface'],
+                        "type", "ipvtap",
+                        "mode", "l2", "bridge"
+                    ],
+                    check=True
+                    )
+            subprocess_run_wrapper(
+                    [
+                        "ip", "link", "set", "up", "ipvtap0"
+                    ],
+                    check=True
+                    )
+            virtinstall_cmd.append(f"--network type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
+        case _:
+            print(f"[WARN] Unknown network type: {network['type']}")
+            sys.exit(1)
 
     print("[INFO] Running virt-install command:")
     print(" ".join(virtinstall_cmd))
