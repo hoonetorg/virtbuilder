@@ -331,7 +331,7 @@ def main():
         "virt-install",
         "--connect=qemu:///system",
         "--hvm",
-        "--cpu=host",
+        "--cpu=host-model",
         "--features=kvm_hidden=on",
         f"--os-variant={vm['os_variant']}",
         f"--name={vm['name']}",
@@ -344,11 +344,11 @@ def main():
     match vm['bios']:
         case "efi":
             if vm['secureboot']:
-                virtinstall_cmd.append(f"--boot uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes")
+                virtinstall_cmd.append("--boot=uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes")
             else:
-                virtinstall_cmd.append(f"--boot uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no")
+                virtinstall_cmd.append("--boot=uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no")
         case "legacy":
-            virtinstall_cmd.append(f"-boot uefi=off")
+            virtinstall_cmd.append("-boot=uefi=off")
         case _:
             print(f"[ERROR] unknown bios {vm['bios']} - Exiting")
             sys.exit(1)
@@ -357,7 +357,7 @@ def main():
     print("\nGraphics")
     match vm['graphics']:
         case "3d":
-            virtinstall_cmd.append(f"--graphics=spice")
+            virtinstall_cmd.append(f"--graphics=spice,listen=none,gl.enable=yes")
             virtinstall_cmd.append(f"--video=virtio,model.acceleration.accel3d=yes")
         case "spice":
             virtinstall_cmd.append(f"--graphics=spice")
@@ -376,22 +376,22 @@ def main():
         disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus=virtio,cache=writethrough,driver.discard='unmap',io=threads,sparse=yes"
         #disk_snippet+=f",size={disk_value['size']}"
         if disk_value.get('readonly', False):
-            disk_snippet+=",readonly"
+            disk_snippet+=",readonly=yes"
         virtinstall_cmd.append(disk_snippet)
-    virtinstall_cmd.append(f"--check disk_size=off")
+    virtinstall_cmd.append(f"--check=disk_size=off")
         
 
     # Add network configuration
     print("\nNetwork")
     match network['type']:
         case "nat":
-            virtinstall_cmd.append(f"--network default,mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=network=default,mac={network['mac']},model=virtio")
         case "isolated":
-            virtinstall_cmd.append(f"--network isolated,mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=network=isolated,mac={network['mac']},model=virtio")
         case "bridge":
-            virtinstall_cmd.append(f"--network bridge={network['parent_interface']},mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=bridge={network['parent_interface']},mac={network['mac']},model=virtio")
         case "macvtap":
-            virtinstall_cmd.append(f"--network type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
         case "ipvtap":
             # Check if ipvtap0 exists
             ipvtap_exists = subprocess_run_wrapper(
@@ -433,7 +433,7 @@ def main():
             else:
                 print("[INFO] ipvtap0 interface is already up.")
     
-            virtinstall_cmd.append(f"--network type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
         case _:
             print(f"[ERROR] Unknown network type: {network['type']} - Exiting")
             sys.exit(1)
