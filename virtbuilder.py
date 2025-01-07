@@ -150,20 +150,32 @@ def mount_ramdisk(ramdisk_path: str, ramdisk_size: int) -> None:
 
     if mount_ramdisk:
         print(f"[INFO] Mounting tmpfs on {ramdisk_path} with size={ramdisk_size}G")
-        os.makedirs(ramdisk_path, exist_ok=True)
+        # need sudo here
+        #os.makedirs(ramdisk_path, exist_ok=True)
+        subprocess_run_wrapper(["sudo", "mkdir", "-p", ramdisk_path], check=True)
         subprocess_run_wrapper([
-            "mount", "-t", "tmpfs", "-o", f"size={ramdisk_size}G",
-            "tmpfs", ramdisk_path
+            "sudo", "mount", 
+            "-t", "tmpfs", 
+            "-o", f"size={ramdisk_size}G",
+            "tmpfs", 
+            ramdisk_path
         ], check=True)
 
 def remove_vm(vm_name: str) -> None:
     """Destroy and undefine an existing VM."""
     print(f"[INFO] Destroying VM '{vm_name}' if it exists.")
-    subprocess_run_wrapper(["virsh", "destroy", vm_name], stderr=subprocess.DEVNULL)
+    subprocess_run_wrapper([
+        "sudo", "virsh", 
+        "--connect=qemu:///system",
+        "destroy", 
+        vm_name], 
+        stderr=subprocess.DEVNULL)
 
     print(f"[INFO] Undefining VM '{vm_name}' if it exists.")
     subprocess_run_wrapper([
-        "virsh", "undefine", vm_name,
+        "sudo", "virsh", 
+        "--connect=qemu:///system",
+        "undefine", vm_name,
         "--managed-save",
         "--remove-all-storage",
         "--delete-storage-volume-snapshots",
@@ -176,7 +188,7 @@ def create_disk(disk_uri: str, size: int, disk_format: str) -> None:
     print(f"[INFO] Creating disk at {disk_uri} with size {size}GiB and format {disk_format}")
     subprocess_run_wrapper(
             [
-                "qemu-img", "create", 
+                "sudo", "qemu-img", "create", 
                 "-f", 
                 disk_format, 
                 "-o", 
@@ -200,7 +212,7 @@ def convert_disk(disk_uri_in: str, disk_uri_out: str, disk_format_in: str, disk_
     try:
         subprocess_run_wrapper(
             [
-                "qemu-img", "convert",
+                "sudo", "qemu-img", "convert",
                 "-p",
                 "-f", disk_format_in,  # Format of the input image (e.g. raw, qcow2)
                 "-O", disk_format_out,  # Output format (e.g., raw, qcow2)
@@ -228,7 +240,7 @@ def resize_disk(disk_uri: str, new_size: int, disk_format: str) -> None:
     try:
         subprocess_run_wrapper(
             [
-                "qemu-img", "resize",
+                "sudo", "qemu-img", "resize",
                 "-f", disk_format,
                 "-o", "preallocation=off",  # Ensures sparse allocation
                 disk_uri, 
@@ -244,7 +256,9 @@ def recreate_disk(disk) -> None:
     # Handle disk 
     if os.path.exists(disk['uri']):
         print(f"[INFO] Removing old disk at {disk['uri']}")
-        os.remove(disk['uri'])
+        # we need sudo here
+        #os.remove(disk['uri'])
+        subprocess_run_wrapper(["sudo", "rm", disk['uri']],check=True)
     if 'imgfile' in disk and os.path.isfile(disk['imgfile']):
         print(f"[INFO] Converting disk image from {disk['imgfile']} to {disk['uri']}")
         if not os.path.exists(disk['imgfile']):
@@ -328,8 +342,9 @@ def main():
     # Build virt-install command
     print("\nCreate virt-install command")
     virtinstall_cmd = [
-        "virt-install",
+        "sudo", "virt-install",
         "--connect=qemu:///system",
+        "--noautoconsole",
         "--hvm",
         "--cpu=host-model",
         "--features=kvm_hidden=on",
@@ -442,6 +457,7 @@ def main():
     print("\n".join(virtinstall_cmd))
     print("\n")
     subprocess_run_wrapper(virtinstall_cmd, check=True)
+    subprocess_run_wrapper(["virt-viewer", "--connect=qemu:///system", "--attach", vm['name']], check=True)
 
 
 if __name__ == "__main__":
