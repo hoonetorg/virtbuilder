@@ -27,15 +27,19 @@ def subprocess_run_wrapper(command, dry_run=None, **kwargs):
         print(f"[EXECUTING] Command: {command_str}")
         return subprocess.run(command, **kwargs)
 
-
 def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="VM creation script using virt-install.")
     parser.add_argument(
-        "--vmconffile",
-        type=str,
-        required=True,
+        "-c", "--vmconffile",
+        type=str,   
+        required=True,  
         help="Path to the YAML configuration file."
+    )
+    parser.add_argument(
+        "-r", "--remove",
+        action="store_true",  # Makes it a boolean flag
+        help="Remove the specified VM configuration (optional)."
     )
     return parser.parse_args()
 
@@ -252,13 +256,17 @@ def resize_disk(disk_uri: str, new_size: int, disk_format: str) -> None:
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] Failed to resize disk '{disk_uri}': {e}")
 
-def recreate_disk(disk) -> None:
-    # Handle disk 
+def remove_disk(disk) -> None:
+    # Remove disk 
     if os.path.exists(disk['uri']):
         print(f"[INFO] Removing old disk at {disk['uri']}")
         # we need sudo here
         #os.remove(disk['uri'])
         subprocess_run_wrapper(["sudo", "rm", disk['uri']],check=True)
+ 
+
+def recreate_disk(disk) -> None:
+    # Handle disk 
     if 'imgfile' in disk and os.path.isfile(disk['imgfile']):
         print(f"[INFO] Converting disk image from {disk['imgfile']} to {disk['uri']}")
         if not os.path.exists(disk['imgfile']):
@@ -313,6 +321,7 @@ def main():
     # Parse arguments
     args = parse_args()
     vmconffile = args.vmconffile
+    remove = args.remove
 
     # Load vmconfig
     vmconfig = load_config(vmconffile)
@@ -334,6 +343,12 @@ def main():
     # Destroy and undefine existing VM
     print("\nDestroy old VM and disks")
     remove_vm(vm['name'])
+    for disk_key, disk_value in disks.items():
+        remove_disk(disk_value)
+    if remove:
+        print(f"[INFO] remove cli argument given - Exiting after remove")
+        sys.exit(0)
+
 
     print("\n(Re)create disks")
     for disk_key, disk_value in disks.items():
@@ -388,7 +403,7 @@ def main():
     # Add disks to virt-install
     print("\nDisks")
     for disk_key, disk_value in disks.items():
-        disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus=virtio,cache=writethrough,driver.discard='unmap',io=threads,sparse=yes"
+        disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus={disk_value.get('bus','virtio')},cache=writethrough,driver.discard='unmap',io=threads,sparse=yes"
         #disk_snippet+=f",size={disk_value['size']}"
         if disk_value.get('readonly', False):
             disk_snippet+=",readonly=yes"
