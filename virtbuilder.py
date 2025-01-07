@@ -53,7 +53,7 @@ def mount_ramdisk(ramdisk_path: str, ramdisk_size: str) -> None:
 
     mount_output = subprocess_run_wrapper(["mount"], capture_output=True, text=True )
     
-    if mount_output is not None:
+    if not defaultconfig.get('dry_run', False):
         mount_output = mount_output.stdout
         print("[INFO] Mount output captured successfully.")
     else:
@@ -267,23 +267,47 @@ def main():
             virtinstall_cmd.append(f"--network bridge={network['parent_interface']},mac={network['mac']},model=virtio")
         case "macvtap":
             virtinstall_cmd.append(f"--network type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
-        case "ipvtab":
-            subprocess_run_wrapper(
+        case "ipvtap":
+            # Check if ipvtap0 exists
+            ipvtap_exists = subprocess_run_wrapper(
+                ["ip", "link", "show", "ipvtap0"],
+                capture_output=True,
+                text=True,
+                dry_run=False  # Replace with your dry-run config if needed
+            )
+            
+            if ipvtap_exists is None or ipvtap_exists.returncode != 0:
+                print("[INFO] Creating ipvtap0 interface...")
+                subprocess_run_wrapper(
                     [
                         "ip", "link", "add",
                         "name", "ipvtap0",
-                        "link",  network['parent_interface'],
+                        "link", network['parent_interface'],
                         "type", "ipvtap",
                         "mode", "l2", "bridge"
                     ],
                     check=True
-                    )
-            subprocess_run_wrapper(
-                    [
-                        "ip", "link", "set", "up", "ipvtap0"
-                    ],
+                )
+            else:
+                print("[INFO] ipvtap0 interface already exists.")
+    
+            # Check if ipvtap0 is up
+            ipvtap_status = subprocess_run_wrapper(
+                ["ip", "link", "show", "ipvtap0"],
+                capture_output=True,
+                text=True,
+                dry_run=False  # Replace with your dry-run config if needed
+            )
+            
+            if ipvtap_status and "UP" not in ipvtap_status.stdout:
+                print("[INFO] Bringing ipvtap0 interface up...")
+                subprocess_run_wrapper(
+                    ["ip", "link", "set", "up", "ipvtap0"],
                     check=True
-                    )
+                )
+            else:
+                print("[INFO] ipvtap0 interface is already up.")
+    
             virtinstall_cmd.append(f"--network type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
         case _:
             print(f"[WARN] Unknown network type: {network['type']}")
