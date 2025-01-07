@@ -3,6 +3,12 @@ vm:
   vcpus: 4
   memory: 16384
   os_variant: "win10"
+  #efi or legacy
+  bios: "efi"
+  #required for bios efi
+  secureboot: True
+  #3d, spice, vnc, serial_console
+  graphics: "3d"
 
 ramdisk:
   path: "/ramdisk"
@@ -22,7 +28,9 @@ disks:
     imgformat: "raw"
 
 network:
+  # default, isolated, bridge, macvtap, ipvtap
   type: "isolated"
   mac: "52:54:00:dd:a1:0a"
+  #required when backing interface is needed: bridge, macvtap, ipvtap
   parent_interface: "enp58s0u1u3u3"
 

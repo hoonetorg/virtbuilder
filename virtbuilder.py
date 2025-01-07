@@ -128,6 +128,7 @@ def convert_disk(disk_uri_in: str, disk_uri_out: str, disk_format_in: str, disk_
         print(f"[INFO] Converted image '{disk_uri_in}' to disk '{disk_uri_out}' with format '{disk_format_out}' and sparse allocation.")
     except subprocess.CalledProcessError as e:
         print(f"[ERROR] Failed to convert image '{disk_uri_in}' to disk '{disk_uri_out}': {e}")
+        sys.exit(1)
 
 
 def resize_disk(disk_uri: str, new_size: str, disk_format: str) -> None:
@@ -200,7 +201,7 @@ def handle_vm_type(vm_type) -> None:
             print("[INFO] Handling Generic VM")
             # Generic VM setup logic
         case _:
-            print(f"[WARN] Unknown VM type: {vm_type}")
+            print(f"[ERROR] Unknown VM type: {vm_type} - Exiting")
             sys.exit(1)
 
 
@@ -248,13 +249,42 @@ def main():
         f"--memory={vm['memory']}",
     ]
 
+    # BIOS
+    match vm['bios']:
+        case "efi":
+            if vm['secureboot']:
+                virtinstall_cmd.append(f"--boot uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes")
+            else:
+                virtinstall_cmd.append(f"--boot uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no")
+        case "legacy":
+            virtinstall_cmd.append(f"-boot uefi=off")
+        case _:
+            print(f"[ERROR] unknown bios {vm['bios']} - Exiting")
+            sys.exit(1)
+
+    # Graphics
+    match vm['graphics']:
+        case "3d":
+            virtinstall_cmd.append(f"--graphics=virtio")
+        case "spice":
+            virtinstall_cmd.append(f"--graphics=spice")
+        case "spice":
+            virtinstall_cmd.append(f"--graphics=vnc")
+        case "serial_console":
+            virtinstall_cmd.append(f"--graphics=none")
+        case _:
+            print(f"[ERROR] Unknown graphics {vm['graphics']} - Exiting.")
+            sys.exit(1)
+
+
     # Add disks to virt-install
     for disk_key, disk_value in disks.items():
-        disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus=virtio,cache=writethrough,driver.discard='unmap',io=threads,sparse=yes,--check disk_size=off"
+        disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus=virtio,cache=writethrough,driver.discard='unmap',io=threads,sparse=yes"
         #disk_snippet+=f",size={disk_value['size']}"
         if disk_value.get('readonly', False):
             disk_snippet+=",readonly"
         virtinstall_cmd.append(disk_snippet)
+        virtinstall_cmd.append(f"--check disk_size=off")
         
 
     # Add network configuration
@@ -310,7 +340,7 @@ def main():
     
             virtinstall_cmd.append(f"--network type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
         case _:
-            print(f"[WARN] Unknown network type: {network['type']}")
+            print(f"[ERROR] Unknown network type: {network['type']} - Exiting")
             sys.exit(1)
 
     print("[INFO] Running virt-install command:")
