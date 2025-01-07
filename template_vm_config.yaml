@@ -18,27 +18,30 @@ ramdisk:
 disks:
   osdisk:
     uri: "/ramdisk/win10.osdisk.raw"
+    bus: "sata"
     format: "raw"
     # size in GiB
     size: 20
 
   installdisk:
     uri: "/ramdisk/win10.install.raw"
+    bus: "usb"
     format: "raw"
     readonly: True
     # size in GiB, optional if converted from image file
     #size: 2
-    imgfile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.iso"
+    imgfile: "/var/lib/libvirt/images/win10.img"
     imgformat: "raw"
 
 
   answerdisk:
     uri: "/ramdisk/win10.answer.raw"
+    bus: "usb"
     format: "raw"
     readonly: True
     # size in GiB, optional if converted from image file
     #size: 2
-    imgfile: "/var/lib/libvirt/images/autounattend.iso"
+    imgfile: "/var/lib/libvirt/images/autounattend.img"
     imgformat: "raw"
 
 network:
