@@ -47,30 +47,114 @@ def load_config(conffile: str) -> dict:
     with open(conffile, "r") as file:
         return yaml.safe_load(file)
 
-def mount_ramdisk(ramdisk_path: str, ramdisk_size: str) -> None:
-    """Ensure the RAM disk is mounted."""
-    os.makedirs(ramdisk_path, exist_ok=True)
+def is_mountpoint(path: str) -> bool:
+    """
+    Check if a given path is a mount point.
 
-    mount_output = subprocess_run_wrapper(["mount"], capture_output=True, text=True )
-    
-    if not defaultconfig.get('dry_run', False):
-        mount_output = mount_output.stdout
-        print("[INFO] Mount output captured successfully.")
+    Parameters:
+    - path (str): The path to check.
+
+    Returns:
+    - bool: True if the path is a mount point, False otherwise.
+    """
+    if os.path.ismount(path):
+        print(f"[INFO] {path} is a mount point.")
+        return True
     else:
-        mount_output = f"on{ramdisk_path} type tmpfs"
-        print(f"[INFO] Dry-run mode; mount output is simulated - setting it to 'on {ramdisk_path} type tmpfs'")    
+        print(f"[INFO] {path} is not a mount point.")
+        return False
 
-    print(f"[DEBUG] mount_output: {repr(mount_output)}")
-    print(f"[DEBUG] Expected: {repr(f'on {ramdisk_path} type tmpfs')}")
 
-    if f"on {ramdisk_path} type tmpfs" not in mount_output:
-        print(f"[INFO] Mounting tmpfs on {ramdisk_path} with size={ramdisk_size}")
+def is_ramdisk(path: str) -> bool:
+    """
+    Check if the mount point is a ramdisk (tmpfs).
+
+    Parameters:
+    - path (str): The mount point to check.
+
+    Returns:
+    - bool: True if the mount point is a ramdisk (tmpfs), False otherwise.
+    """
+    try:
+        with open("/proc/mounts", "r") as mounts_file:
+            for line in mounts_file:
+                parts = line.split()
+                mount_point = parts[1]  # The second field is the mount point
+                if os.path.normpath(mount_point) == os.path.normpath(path):
+                    if parts[2] == "tmpfs":
+                        print(f"[INFO] {path} is a ramdisk (tmpfs).")
+                        return True
+                    else:
+                        print(f"[INFO] {path} is not a ramdisk (tmpfs).")
+                        return False
+    except FileNotFoundError:
+        print("[ERROR] /proc/mounts not found. Are you running on Linux?")
+    except Exception as e:
+        print(f"[ERROR] An error occurred: {e}")
+
+    print(f"[INFO] {path} is not a ramdisk (tmpfs).")
+    return False
+
+
+def has_correct_size(path: str, expected_size_gb: int) -> bool:
+    """
+    Check if a ramdisk (tmpfs) has the correct size.
+
+    Parameters:
+    - path (str): The ramdisk mount point to check.
+    - expected_size_gb (int): The expected size in GB.
+
+    Returns:
+    - bool: True if the ramdisk has the correct size, False otherwise.
+    """
+    try:
+        with open("/proc/mounts", "r") as mounts_file:
+            for line in mounts_file:
+                parts = line.split()
+                mount_point = parts[1]  # The second field is the mount point
+                if os.path.normpath(mount_point) == os.path.normpath(path):
+                    options = parts[3].split(",")
+                    size_option = next((opt for opt in options if opt.startswith("size=")), None)
+                    if size_option:
+                        size_kb = int(size_option.split("=")[1].strip("k"))
+                        size_gb = size_kb / (1024 * 1024)
+                        if size_gb == expected_size_gb:
+                            print(f"[INFO] {path} has the correct size of {expected_size_gb} GB.")
+                            return True
+                        else:
+                            print(f"[INFO] {path} has size {size_gb:.2f} GB (expected {expected_size_gb} GB).")
+                            return False
+                    else:
+                        print(f"[WARN] {path} does not have a size specified.")
+                        return False
+    except FileNotFoundError:
+        print("[ERROR] /proc/mounts not found. Are you running on Linux?")
+    except Exception as e:
+        print(f"[ERROR] An error occurred: {e}")
+
+    print(f"[INFO] {path} size information not found.")
+    return False
+
+def mount_ramdisk(ramdisk_path: str, ramdisk_size: int) -> None:
+    """Ensure the RAM disk is mounted."""
+
+    mount_ramdisk = False
+    if not is_mountpoint(ramdisk_path):
+        mount_ramdisk = True
+    if not mount_ramdisk and not is_ramdisk(ramdisk_path):
+        print(f"[ERROR] Ramdisk path {ramdisk_path} is a mountpoint but not a ramdisk - Exiting")
+        sys.exit(1)
+    if not mount_ramdisk and not has_correct_size(ramdisk_path, ramdisk_size):
+        print(f"[ERROR] Ramdisk path {ramdisk_path} is a mountpoint but does not have correct size - Exiting")
+        sys.exit(1)
+
+    if mount_ramdisk:
+        print(f"[INFO] Mounting tmpfs on {ramdisk_path} with size={ramdisk_size}G")
+        os.makedirs(ramdisk_path, exist_ok=True)
         subprocess_run_wrapper([
-            "mount", "-t", "tmpfs", "-o", f"size={ramdisk_size}",
+            "mount", "-t", "tmpfs", "-o", f"size={ramdisk_size}G",
             "tmpfs", ramdisk_path
         ], check=True)
-    else:
-        print(f"[INFO] {ramdisk_path} is already mounted.")
 
 def remove_vm(vm_name: str) -> None:
     """Destroy and undefine an existing VM."""
@@ -88,8 +172,8 @@ def remove_vm(vm_name: str) -> None:
         "--nvram"
     ], stderr=subprocess.DEVNULL)
 
-def create_disk(disk_uri: str, size: str, disk_format: str) -> None:
-    print(f"[INFO] Creating disk at {disk_uri} with size {size} and format {disk_format}")
+def create_disk(disk_uri: str, size: int, disk_format: str) -> None:
+    print(f"[INFO] Creating disk at {disk_uri} with size {size}GiB and format {disk_format}")
     subprocess_run_wrapper(
             [
                 "qemu-img", "create", 
@@ -98,7 +182,7 @@ def create_disk(disk_uri: str, size: str, disk_format: str) -> None:
                 "-o", 
                 "preallocation=off", 
                 disk_uri, 
-                size
+                f"{size}G"
             ], 
             check=True)
 
@@ -117,6 +201,7 @@ def convert_disk(disk_uri_in: str, disk_uri_out: str, disk_format_in: str, disk_
         subprocess_run_wrapper(
             [
                 "qemu-img", "convert",
+                "-p",
                 "-f", disk_format_in,  # Format of the input image (e.g. raw, qcow2)
                 "-O", disk_format_out,  # Output format (e.g., raw, qcow2)
                 "-o", "preallocation=off",  # Sparse allocation for the output disk
@@ -131,13 +216,13 @@ def convert_disk(disk_uri_in: str, disk_uri_out: str, disk_format_in: str, disk_
         sys.exit(1)
 
 
-def resize_disk(disk_uri: str, new_size: str, disk_format: str) -> None:
+def resize_disk(disk_uri: str, new_size: int, disk_format: str) -> None:
     """
     Resize a disk image with sparse allocation and no preallocation.
 
     Parameters:
     - disk_uri (str): Path to the disk image.
-    - new_size (str): New size of the disk image (e.g., "40G").
+    - new_size (str): New size of the disk image in GiB(e.g., "40").
     - disk_format (str): Format of the disk image (e.g., "qcow2", "raw").
     """
     try:
@@ -147,7 +232,7 @@ def resize_disk(disk_uri: str, new_size: str, disk_format: str) -> None:
                 "-f", disk_format,
                 "-o", "preallocation=off",  # Ensures sparse allocation
                 disk_uri, 
-                new_size
+                f"{new_size}G"
             ],
             check=True
         )
@@ -209,7 +294,7 @@ def main():
     global defaultconfig
     defaultconffile = "virtbuilder.conf"
     defaultconfig = load_config(defaultconffile)
-    print(f"defaultconfig: {defaultconfig}")
+    print(f"defaultconfig:\n{yaml.dump(defaultconfig)}")
 
     # Parse arguments
     args = parse_args()
@@ -217,7 +302,7 @@ def main():
 
     # Load vmconfig
     vmconfig = load_config(vmconffile)
-    print(f"vmconfig: {vmconfig}")
+    print(f"vmconfig:\n{yaml.dump(vmconfig)}")
 
     vm = vmconfig['vm']
     disks = vmconfig['disks']
@@ -225,24 +310,29 @@ def main():
     network = vmconfig['network']
 
     # TODO
+    print("\nVM type")
     #handle_vm_type(vm['type'])
 
     # Ensure RAM disk is mounted
+    print("\nRAM disk")
     mount_ramdisk(ramdisk['path'], ramdisk['size'])
 
     # Destroy and undefine existing VM
+    print("\nDestroy old VM and disks")
     remove_vm(vm['name'])
 
+    print("\n(Re)create disks")
     for disk_key, disk_value in disks.items():
         recreate_disk(disk_value)
 
     # Build virt-install command
+    print("\nCreate virt-install command")
     virtinstall_cmd = [
         "virt-install",
         "--connect=qemu:///system",
         "--hvm",
-        "--cpu", "host",
-        "--features", "kvm_hidden=on",
+        "--cpu=host",
+        "--features=kvm_hidden=on",
         f"--os-variant={vm['os_variant']}",
         f"--name={vm['name']}",
         f"--vcpus={vm['vcpus']}",
@@ -250,6 +340,7 @@ def main():
     ]
 
     # BIOS
+    print("\nBIOS")
     match vm['bios']:
         case "efi":
             if vm['secureboot']:
@@ -263,12 +354,14 @@ def main():
             sys.exit(1)
 
     # Graphics
+    print("\nGraphics")
     match vm['graphics']:
         case "3d":
-            virtinstall_cmd.append(f"--graphics=virtio")
+            virtinstall_cmd.append(f"--graphics=spice")
+            virtinstall_cmd.append(f"--video=virtio,model.acceleration.accel3d=yes")
         case "spice":
             virtinstall_cmd.append(f"--graphics=spice")
-        case "spice":
+        case "vnc":
             virtinstall_cmd.append(f"--graphics=vnc")
         case "serial_console":
             virtinstall_cmd.append(f"--graphics=none")
@@ -278,16 +371,18 @@ def main():
 
 
     # Add disks to virt-install
+    print("\nDisks")
     for disk_key, disk_value in disks.items():
         disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus=virtio,cache=writethrough,driver.discard='unmap',io=threads,sparse=yes"
         #disk_snippet+=f",size={disk_value['size']}"
         if disk_value.get('readonly', False):
             disk_snippet+=",readonly"
         virtinstall_cmd.append(disk_snippet)
-        virtinstall_cmd.append(f"--check disk_size=off")
+    virtinstall_cmd.append(f"--check disk_size=off")
         
 
     # Add network configuration
+    print("\nNetwork")
     match network['type']:
         case "nat":
             virtinstall_cmd.append(f"--network default,mac={network['mac']},model=virtio")
@@ -343,8 +438,9 @@ def main():
             print(f"[ERROR] Unknown network type: {network['type']} - Exiting")
             sys.exit(1)
 
-    print("[INFO] Running virt-install command:")
-    print(" ".join(virtinstall_cmd))
+    print("\n[INFO] Running virt-install command:")
+    print("\n".join(virtinstall_cmd))
+    print("\n")
     subprocess_run_wrapper(virtinstall_cmd, check=True)
 
 

@@ -12,19 +12,33 @@ vm:
 
 ramdisk:
   path: "/ramdisk"
-  size: "30G"
+  # size in GiB
+  size: 30
 
 disks:
   osdisk:
     uri: "/ramdisk/win10.osdisk.raw"
     format: "raw"
-    size: "20G"
+    # size in GiB
+    size: 20
 
-  provisioningdisk:
-    uri: "/ramdisk/win10.provision.raw"
+  installdisk:
+    uri: "/ramdisk/win10.install.raw"
     format: "raw"
     readonly: True
-    imgfile: "/var/lib/libvirt/images/provision.img"
+    # size in GiB, optional if converted from image file
+    #size: 2
+    imgfile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.iso"
+    imgformat: "raw"
+
+
+  answerdisk:
+    uri: "/ramdisk/win10.answer.raw"
+    format: "raw"
+    readonly: True
+    # size in GiB, optional if converted from image file
+    #size: 2
+    imgfile: "/var/lib/libvirt/images/autounattend.iso"
     imgformat: "raw"
 
 network:
