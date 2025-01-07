@@ -17,6 +17,7 @@ disks:
   provisioningdisk:
     uri: "/ramdisk/win10.provision.raw"
     format: "raw"
+    readonly: True
     imgfile: "/var/lib/libvirt/images/provision.img"
     imgformat: "raw"
 

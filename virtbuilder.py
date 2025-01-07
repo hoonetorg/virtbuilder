@@ -216,8 +216,6 @@ def main():
 
     # Load vmconfig
     vmconfig = load_config(vmconffile)
-
-
     print(f"vmconfig: {vmconfig}")
 
     vm = vmconfig['vm']
@@ -228,17 +226,11 @@ def main():
     # TODO
     #handle_vm_type(vm['type'])
 
-    vm_name = vm['name']
-    osdisk = disks['osdisk']
-    provisioningdisk = disks.get('provisioningdisk', {})
-    ramdisk_path = ramdisk['path']
-    ramdisk_size = ramdisk['size']
-
     # Ensure RAM disk is mounted
-    mount_ramdisk(ramdisk_path, ramdisk_size)
+    mount_ramdisk(ramdisk['path'], ramdisk['size'])
 
     # Destroy and undefine existing VM
-    remove_vm(vm_name)
+    remove_vm(vm['name'])
 
     for disk_key, disk_value in disks.items():
         recreate_disk(disk_value)
@@ -251,17 +243,19 @@ def main():
         "--cpu", "host",
         "--features", "kvm_hidden=on",
         f"--os-variant={vm['os_variant']}",
-        f"--name={vm_name}",
+        f"--name={vm['name']}",
         f"--vcpus={vm['vcpus']}",
         f"--memory={vm['memory']}",
-        f"--disk=path={osdisk['uri']},size={osdisk['size']},format={osdisk['format']},bus=virtio,sparse=yes",
     ]
 
-    # Add provisioning disk to virt-install if present
-    if provisioningdisk:
-        virtinstall_cmd.append(
-            f"--disk=path={provisioningdisk['uri']},format={provisioningdisk['format']},bus=virtio"
-        )
+    # Add disks to virt-install
+    for disk_key, disk_value in disks.items():
+        disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus=virtio,cache=writethrough,driver.discard='unmap',io=threads,sparse=yes,--check disk_size=off"
+        #disk_snippet+=f",size={disk_value['size']}"
+        if disk_value.get('readonly', False):
+            disk_snippet+=",readonly"
+        virtinstall_cmd.append(disk_snippet)
+        
 
     # Add network configuration
     match network['type']:
@@ -270,7 +264,7 @@ def main():
         case "isolated":
             virtinstall_cmd.append(f"--network isolated,mac={network['mac']},model=virtio")
         case "bridge":
-        virtinstall_cmd.append(f"--network bridge={network['parent_interface']},mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network bridge={network['parent_interface']},mac={network['mac']},model=virtio")
         case "macvtap":
             virtinstall_cmd.append(f"--network type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
         case "ipvtab":
@@ -302,4 +296,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
