@@ -28,6 +28,7 @@ disks:
     bus: "usb"
     format: "raw"
     readonly: True
+    removable: True
     # size in GiB, optional if converted from image file
     #size: 2
     imgfile: "/var/lib/libvirt/images/win10.img"
@@ -39,6 +40,7 @@ disks:
     bus: "usb"
     format: "raw"
     readonly: True
+    removable: True
     # size in GiB, optional if converted from image file
     #size: 2
     imgfile: "/var/lib/libvirt/images/autounattend.img"

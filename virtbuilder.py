@@ -3,6 +3,7 @@ import argparse
 import os
 import sys
 import yaml
+import xml.etree.ElementTree as ET
 
 def subprocess_run_wrapper(command, dry_run=None, **kwargs):
     """
@@ -312,6 +313,27 @@ def handle_vm_type(vm_type) -> None:
             sys.exit(1)
 
 
+def set_disk_removable(xml: str, disk) -> str:
+    print(f"[DEBUG]: disk['uri'] {disk['uri']}")
+    root = ET.fromstring(xml)
+    
+    # Find the disk_element element with the specific source file
+    for disk_element in root.findall(".//disk"):
+        source = disk_element.find("source")
+        print(f"[DEBUG]: source.attrib.get('file') {source.attrib.get('file')}")
+        if source is not None and source.attrib.get("file") == disk['uri']:
+            target = disk_element.find("target")
+            if target is not None and target.attrib.get("dev") and target.attrib.get("bus"):
+                # Add the "removable" attribute
+                print(f"disk_element b4:\n{ET.tostring(disk_element, encoding='unicode')}")
+                target.set("removable", "on")
+                print(f"disk_element after:\n{ET.tostring(disk_element, encoding='unicode')}")
+    
+    # Convert the modified XML tree back to a string
+    return ET.tostring(root, encoding="unicode")
+
+    
+
 def main():
     global defaultconfig
     defaultconffile = "virtbuilder.conf"
@@ -322,6 +344,13 @@ def main():
     args = parse_args()
     vmconffile = args.vmconffile
     remove = args.remove
+
+    vmconffile_base, vmconffile_ext  = os.path.splitext(vmconffile)
+    print(f"[DEBUG] vmconffile {vmconffile} extension is: '{vmconffile_ext}'") 
+    if vmconffile_ext not in [".yml", ".yaml"]:
+        print(f"[ERROR] vmconffile {vmconffile} must have extension .yml or .yaml - Exiting")
+        sys.exit(1)
+    vmvirtfile = f"{vmconffile_base}.xml"
 
     # Load vmconfig
     vmconfig = load_config(vmconffile)
@@ -360,6 +389,7 @@ def main():
         "sudo", "virt-install",
         "--connect=qemu:///system",
         "--noautoconsole",
+        "--print-xml",
         "--hvm",
         "--cpu=host-model",
         "--features=kvm_hidden=on",
@@ -471,7 +501,36 @@ def main():
     print("\n[INFO] Running virt-install command:")
     print("\n".join(virtinstall_cmd))
     print("\n")
-    subprocess_run_wrapper(virtinstall_cmd, check=True)
+    vm_ret = subprocess_run_wrapper(virtinstall_cmd, capture_output=True, text=True)
+
+    # Check for errors in stderr or non-zero return code
+    if vm_ret.returncode != 0 or vm_ret.stderr:
+        print(f"[ERROR] Command failed with return code {vm_ret.returncode}.")
+        print(f"[INFO] stdout: {vm_ret.stdout.strip()}")
+        print(f"[ERROR] stderr: {vm_ret.stderr.strip()}")
+        sys.exit(1)
+
+    # Capture the XML output from stdout
+    vm_xml = vm_ret.stdout
+
+    # adapt options not supported by virt-install directly in xml
+    # disk removable
+    for disk_key, disk_value in disks.items():
+        if disk_value.get('removable', False):
+            vm_xml = set_disk_removable(xml = vm_xml, disk = disk_value)
+
+    # Write the XML to a file
+    try:
+        with open(vmvirtfile, "w") as file:
+            file.write(vm_xml)
+        print(f"[INFO] VM XML written to {vmvirtfile}")
+    except IOError as e:
+        print(f"[ERROR] Failed to write VM XML to {vmvirtfile}: {e}")
+        sys.exit(1)
+
+    
+    subprocess_run_wrapper(["sudo", "virsh", "--connect=qemu:///system", "define", vmvirtfile], check=True)
+    subprocess_run_wrapper(["sudo", "virsh", "--connect=qemu:///system", "start", vm['name']], check=True)
     subprocess_run_wrapper(["virt-viewer", "--connect=qemu:///system", "--attach", vm['name']], check=True)
 
 
