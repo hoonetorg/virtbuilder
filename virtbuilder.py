@@ -399,6 +399,9 @@ def main():
         f"--memory={vm['memory']}",
     ]
 
+    if vm.get('usbver', False) == "2":
+        virtinstall_cmd.append("--controller=usb2")
+
     # BIOS
     print("\nBIOS")
     match vm['bios']:
@@ -432,26 +435,32 @@ def main():
 
     # Add disks to virt-install
     print("\nDisks")
+    scsi_controller = False
     for disk_key, disk_value in disks.items():
-        disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus={disk_value.get('bus','virtio')},cache=writethrough,driver.discard='unmap',io=threads,sparse=yes"
+        bus = disk_value.get('bus','scsi')
+        disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus={bus},cache=writethrough,driver.discard='unmap',io=threads,sparse=yes"
         #disk_snippet+=f",size={disk_value['size']}"
         if disk_value.get('readonly', False):
             disk_snippet+=",readonly=yes"
+        if bus == 'scsi':
+            scsi_controller = True
         virtinstall_cmd.append(disk_snippet)
     virtinstall_cmd.append(f"--check=disk_size=off")
+    if scsi_controller:
+        virtinstall_cmd.append(f"--controller=type=scsi,model=virtio-scsi")
         
 
     # Add network configuration
     print("\nNetwork")
     match network['type']:
         case "nat":
-            virtinstall_cmd.append(f"--network=network=default,mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=network=default,mac={network['mac']},model={network.get('model', 'virtio')}")
         case "isolated":
-            virtinstall_cmd.append(f"--network=network=isolated,mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=network=isolated,mac={network['mac']},model={network.get('model', 'virtio')}")
         case "bridge":
-            virtinstall_cmd.append(f"--network=bridge={network['parent_interface']},mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=bridge={network['parent_interface']},mac={network['mac']},model={network.get('model', 'virtio')}")
         case "macvtap":
-            virtinstall_cmd.append(f"--network=type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model={network.get('model', 'virtio')}")
         case "ipvtap":
             # Check if ipvtap0 exists
             ipvtap_exists = subprocess_run_wrapper(
@@ -493,7 +502,7 @@ def main():
             else:
                 print("[INFO] ipvtap0 interface is already up.")
     
-            virtinstall_cmd.append(f"--network=type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model=virtio")
+            virtinstall_cmd.append(f"--network=type=direct,source={network['parent_interface']},source_mode=bridge,mac={network['mac']},model={network.get('model', 'virtio')}")
         case _:
             print(f"[ERROR] Unknown network type: {network['type']} - Exiting")
             sys.exit(1)
