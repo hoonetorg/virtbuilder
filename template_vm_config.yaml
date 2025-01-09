@@ -22,7 +22,7 @@ disks:
     bus: "sata"
     format: "raw"
     # size in GiB
-    size: 20
+    size: 60
 
   installdisk:
     uri: "/ramdisk/win10.install.raw"
@@ -32,7 +32,7 @@ disks:
     removable: True
     # size in GiB, optional if converted from image file
     #size: 2
-    imgfile: "/var/lib/libvirt/images/win10.img"
+    imgfile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.img"
     imgformat: "raw"
 
 
@@ -48,7 +48,7 @@ disks:
     imgformat: "raw"
 
 network:
-  #model: "e1000e"
+  model: "e1000e"
   # default, isolated, bridge, macvtap, ipvtap
   type: "isolated"
   mac: "52:54:00:dd:a1:0a"
