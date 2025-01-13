@@ -4,6 +4,7 @@ import os
 import sys
 import yaml
 import xml.etree.ElementTree as ET
+import re
 
 def subprocess_run_wrapper(command, dry_run=None, **kwargs):
     """
@@ -44,31 +45,48 @@ def parse_args():
     )
     return parser.parse_args()
 
+def get_path(file):
+    full_path = os.path.normpath(file)
+    if not os.path.isabs(full_path) and not full_path.startswith("./"):
+        full_path = f"./{full_path}"
+    return full_path
+
+def privileged_path_exists(path, and_is_file = None, and_is_dir = None) -> bool:
+    try:
+        # Use `sudo stat` to check if the file or directory exists
+        result = subprocess_run_wrapper(
+            ["sudo", "stat", "-c", "%F", get_path(path)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        print(f"[INFO] stat stdout for path {path}: {result.stdout.strip()}")
+        print(f"[INFO] stat stderr for path {path}: {result.stderr.strip()}")
+        if result.returncode == 0:
+            print(f"[INFO] {path} exists")
+            if and_is_file:
+                print(f"[INFO] result.stdout.strip() {result.stdout.strip()}")
+                yes_is_file = result.stdout.strip() == b'regular file'
+                print(f"[INFO] {path} is file {yes_is_file}")
+                # Check if the output indicates a regular file
+                return yes_is_file
+            if and_is_dir:
+                # Check if the output indicates a dir
+                yes_is_dir = result.stdout.strip() == b'directory'
+                print(f"[INFO] {path} is dir {yes_is_dir}")
+                return yes_is_dir
+            return True
+        return False
+    except Exception as e:
+        print(f"[Error]: Exception {e}")
+        return False
+
 def load_config(conffile: str) -> dict:
     """Load and return YAML configuration."""
-    if not os.path.exists(conffile):
+    if not os.path.isfile(conffile):
         print(f"[ERROR] YAML configuration file {conffile} not found.")
         sys.exit(1)
     with open(conffile, "r") as file:
         return yaml.safe_load(file)
-
-def is_mountpoint(path: str) -> bool:
-    """
-    Check if a given path is a mount point.
-
-    Parameters:
-    - path (str): The path to check.
-
-    Returns:
-    - bool: True if the path is a mount point, False otherwise.
-    """
-    if os.path.ismount(path):
-        print(f"[INFO] {path} is a mount point.")
-        return True
-    else:
-        print(f"[INFO] {path} is not a mount point.")
-        return False
-
 
 def is_ramdisk(path: str) -> bool:
     """
@@ -144,7 +162,7 @@ def mount_ramdisk(ramdisk_path: str, ramdisk_size: int) -> None:
     """Ensure the RAM disk is mounted."""
 
     mount_ramdisk = False
-    if not is_mountpoint(ramdisk_path):
+    if not os.path.ismount(ramdisk_path):
         mount_ramdisk = True
     if not mount_ramdisk and not is_ramdisk(ramdisk_path):
         print(f"[ERROR] Ramdisk path {ramdisk_path} is a mountpoint but not a ramdisk - Exiting")
@@ -259,7 +277,7 @@ def resize_disk(disk_uri: str, new_size: int, disk_format: str) -> None:
 
 def remove_disk(disk) -> None:
     # Remove disk 
-    if os.path.exists(disk['uri']):
+    if privileged_path_exists(disk['uri']):
         print(f"[INFO] Removing old disk at {disk['uri']}")
         # we need sudo here
         #os.remove(disk['uri'])
@@ -268,9 +286,9 @@ def remove_disk(disk) -> None:
 
 def recreate_disk(disk) -> None:
     # Handle disk 
-    if 'imgfile' in disk and os.path.isfile(disk['imgfile']):
+    if 'imgfile' in disk and privileged_path_exists(disk['imgfile'], and_is_file = True):
         print(f"[INFO] Converting disk image from {disk['imgfile']} to {disk['uri']}")
-        if not os.path.exists(disk['imgfile']):
+        if not privileged_path_exists(disk['imgfile'], and_is_file = True):
             print(f"[ERROR] Disk image {disk['imgfile']} does not exist. Exiting.")
             sys.exit(1)
         convert_disk(
@@ -332,6 +350,29 @@ def set_disk_removable(xml: str, disk) -> str:
     # Convert the modified XML tree back to a string
     return ET.tostring(root, encoding="unicode")
 
+def split_generic_xml(output):
+    """
+    Splits generic XML content into individual top-level elements.
+
+    Args:
+        output (str): The string containing multiple XML documents or blocks.
+
+    Returns:
+        list: A list of XML strings, each representing a complete XML document.
+    """
+    # Regex to find complete XML blocks based on a top-level tag
+    # Assumes the top-level tag starts with a "<" and ends with ">"
+    matches = re.findall(r'<([a-zA-Z0-9:_-]+)[^>]*>.*?</\1>', output, re.DOTALL)
+    print(f"matches: {matches}")
+
+
+    # Use regex groups to extract matching XML blocks
+    xml_blocks = re.findall(r'(<([a-zA-Z0-9:_-]+)[^>]*>.*?</\2>)', output, re.DOTALL)
+    print(f"xml_blocks: {xml_blocks}")
+
+    # Return only the first group (the full matched XML block)
+    return [match[0] for match in xml_blocks]
+
     
 
 def main():
@@ -339,6 +380,7 @@ def main():
     defaultconffile = "virtbuilder.conf"
     defaultconfig = load_config(defaultconffile)
     print(f"defaultconfig:\n{yaml.dump(defaultconfig)}")
+    ramdisk = defaultconfig['ramdisk']
 
     # Parse arguments
     args = parse_args()
@@ -358,7 +400,7 @@ def main():
 
     vm = vmconfig['vm']
     disks = vmconfig['disks']
-    ramdisk = vmconfig['ramdisk']
+    cdroms = vmconfig['cdroms']
     network = vmconfig['network']
 
     # TODO
@@ -372,7 +414,7 @@ def main():
     # Destroy and undefine existing VM
     print("\nDestroy old VM and disks")
     remove_vm(vm['name'])
-    for disk_key, disk_value in disks.items():
+    for disk_key, disk_value in { **disks, **cdroms}.items():
         remove_disk(disk_value)
     if remove:
         print(f"[INFO] remove cli argument given - Exiting after remove")
@@ -382,6 +424,15 @@ def main():
     print("\n(Re)create disks")
     for disk_key, disk_value in disks.items():
         recreate_disk(disk_value)
+
+    print("\nCopying ISOs")
+    for cdrom_key, cdrom_value in cdroms.items():
+        convert_disk(
+            disk_uri_in=cdrom_value['isofile'],
+            disk_uri_out=cdrom_value['uri'],
+            disk_format_in="raw",
+            disk_format_out="raw"
+            )
 
     # Build virt-install command
     print("\nCreate virt-install command")
@@ -448,6 +499,14 @@ def main():
     virtinstall_cmd.append(f"--check=disk_size=off")
     if scsi_controller:
         virtinstall_cmd.append(f"--controller=type=scsi,model=virtio-scsi")
+ 
+    # Add cdrom to virt-install
+    print("\nCdrom")
+    for cdrom_key, cdrom_value in cdroms.items():
+        cdrom_snippet = f"--cdrom={cdrom_value['uri']}"
+        #if cdrom_value.get('readonly', False):
+        #    cdrom_snippet+=",readonly=yes"
+        virtinstall_cmd.append(cdrom_snippet)
         
 
     # Add network configuration
@@ -507,6 +566,8 @@ def main():
             print(f"[ERROR] Unknown network type: {network['type']} - Exiting")
             sys.exit(1)
 
+    #virtinstall_cmd.append(f"--unattended")
+
     print("\n[INFO] Running virt-install command:")
     print("\n".join(virtinstall_cmd))
     print("\n")
@@ -520,7 +581,7 @@ def main():
         sys.exit(1)
 
     # Capture the XML output from stdout
-    vm_xml = vm_ret.stdout
+    vm_xml = split_generic_xml(vm_ret.stdout)[-1]
 
     # adapt options not supported by virt-install directly in xml
     # disk removable

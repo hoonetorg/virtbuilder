@@ -8,18 +8,30 @@ vm:
   #required for bios efi
   secureboot: True
   #3d, spice, vnc, serial_console
-  graphics: "3d"
+  graphics: "spice"
   #usbver: "2"
 
-ramdisk:
-  path: "/ramdisk"
-  # size in GiB
-  size: 30
+cdroms:
+  drivercdrom:
+    uri: "/ramdisk/win.driveriso.raw"
+    readonly: True
+    isofile: "/var/lib/libvirt/images/virtio-win-0.1.266.iso"
+
+  #installcdrom:
+  #  uri: "/ramdisk/win10.installiso.raw"
+  #  readonly: True
+  #  isofile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.iso"
+
+  #unattendcrom:
+  #  uri: "/ramdisk/win.unattendiso.raw"
+  #  readonly: True
+  #  isofile: "/var/lib/libvirt/images/win10-unattend.iso"
+
 
 disks:
   osdisk:
     uri: "/ramdisk/win10.osdisk.raw"
-    bus: "sata"
+    bus: "scsi"
     format: "raw"
     # size in GiB
     size: 60
@@ -35,9 +47,31 @@ disks:
     imgfile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.img"
     imgformat: "raw"
 
+  #dummyvirtiodisk:
+  #  uri: "/ramdisk/win10.dummyvirtiodisk.qcow2"
+  #  bus: "virtio"
+  #  format: "qcow2"
+  #  size: 1
+
+  #dummyvirtioscsidisk:
+  #  uri: "/ramdisk/win10.dummyvirtioscsidisk.qcow2"
+  #  bus: "scsi"
+  #  format: "qcow2"
+  #  size: 1
+
+  #driverdisk:
+  #  uri: "/ramdisk/win.driver.raw"
+  #  bus: "usb"
+  #  format: "raw"
+  #  readonly: True
+  #  removable: True
+  #  # size in GiB, optional if converted from image file
+  #  #size: 2
+  #  imgfile: "/var/lib/libvirt/images/virtio-win-0.1.266.iso"
+  #  imgformat: "raw"
 
   answerdisk:
-    uri: "/ramdisk/win10.answer.raw"
+    uri: "/ramdisk/win.answer.raw"
     bus: "usb"
     format: "raw"
     readonly: True
@@ -48,7 +82,7 @@ disks:
     imgformat: "raw"
 
 network:
-  model: "e1000e"
+  #model: "e1000e"
   # default, isolated, bridge, macvtap, ipvtap
   type: "isolated"
   mac: "52:54:00:dd:a1:0a"
