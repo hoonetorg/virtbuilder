@@ -398,10 +398,10 @@ def main():
     vmconfig = load_config(vmconffile)
     print(f"vmconfig:\n{yaml.dump(vmconfig)}")
 
-    vm = vmconfig['vm']
-    disks = vmconfig['disks']
-    cdroms = vmconfig['cdroms']
-    network = vmconfig['network']
+    vm = vmconfig.get('vm',{})
+    disks = vmconfig.get('disks', {})
+    cdroms = vmconfig.get('cdroms', {})
+    network = vmconfig.get('network',{})
 
     # TODO
     print("\nVM type")

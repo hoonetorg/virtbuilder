@@ -83,7 +83,7 @@ disks:
 
 network:
   #model: "e1000e"
-  # default, isolated, bridge, macvtap, ipvtap
+  # nat, isolated, bridge, macvtap, ipvtap
   type: "isolated"
   mac: "52:54:00:dd:a1:0a"
   #required when backing interface is needed: bridge, macvtap, ipvtap
