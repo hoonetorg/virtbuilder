@@ -475,11 +475,11 @@ def main():
             virtinstall_cmd.append(f"--video=virtio,model.acceleration.accel3d=yes")
         case "spice":
             virtinstall_cmd.append(f"--graphics=spice")
-            if vm["video"]:
+            if vm.get("video", False):
                 virtinstall_cmd.append(f"--video={vm['video']}")
         case "vnc":
             virtinstall_cmd.append(f"--graphics=vnc")
-            if vm["video"]:
+            if vm.get("video", False):
                 virtinstall_cmd.append(f"--video={vm['video']}")
         case "serial_console":
             virtinstall_cmd.append(f"--graphics=none")
