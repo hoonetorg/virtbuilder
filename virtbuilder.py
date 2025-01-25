@@ -221,8 +221,31 @@ def create_disk(disk_uri: str, size: int, disk_format: str) -> None:
             ], 
             check=True)
 
+def get_sha256sum(file_path: str, dry_run=None) -> str:
+    """Calculate and return the SHA-256 checksum of a file using sudo if necessary."""
+    # Construct the sha256sum command
+    command = ["sudo", "sha256sum", file_path]
 
-def convert_disk(disk_uri_in: str, disk_uri_out: str, disk_format_in: str, disk_format_out: str) -> None:
+    # Run the command using subprocess_run_wrapper
+    result = subprocess_run_wrapper(command, dry_run=dry_run, capture_output=True, text=True)
+
+    if result is None:
+        return None  # In dry-run mode, we don't proceed to get the checksum
+    
+    # Capture the output of the sha256sum command
+    output = result.stdout.strip()  # Strip any trailing whitespace/newlines
+    
+    # The checksum is the first part of the output
+    sha256sum = output.split()[0] if output else None
+    
+    if sha256sum:
+        print(f"[INFO] SHA-256 checksum for '{file_path}': {sha256sum}")
+    else:
+        print(f"[ERROR] Failed to compute SHA-256 checksum for '{file_path}'")
+    
+    return sha256sum
+
+def convert_disk(disk_uri_in: str, disk_uri_out: str, disk_format_in: str, disk_format_out: str, disk_uri_in_sha256sum: str = None) -> None:
     """
     Convert an disk to a disk with sparse allocation.
 
@@ -231,7 +254,17 @@ def convert_disk(disk_uri_in: str, disk_uri_out: str, disk_format_in: str, disk_
     - disk_uri_out (str): Path to the output disk.
     - disk_format_in (str): Format of the input disk (e.g., "qcow2", "raw").
     - disk_format_out (str): Format of the output disk (e.g., "qcow2", "raw").
+    - disk_uri_in_sha256sum (str, optional): Expected SHA-256 checksum of the output disk.
     """
+    print(f"[DEBUG] disk_uri_in_sha256sum '{disk_uri_in_sha256sum}', disk_uri_out: '{disk_uri_out}', privileged_path_exists and_is_file: '{privileged_path_exists(disk_uri_out, and_is_file=True)}'")
+    if disk_uri_in_sha256sum and privileged_path_exists(disk_uri_out, and_is_file=True):
+        # Check if the current checksum of the output disk matches the expected one
+        current_sha256sum = get_sha256sum(disk_uri_out)
+        print(f"[INFO] sha25sum '{disk_uri_out}':\n{current_sha256sum}\nexpected sha256sum:\n{disk_uri_in_sha256sum}")
+        if current_sha256sum == disk_uri_in_sha256sum:
+            print(f"[INFO] The disk '{disk_uri_out}' already matches the provided SHA-256 checksum. No conversion needed.")
+            return  # Early exit if checksums match
+        
     try:
         subprocess_run_wrapper(
             [
@@ -295,7 +328,8 @@ def recreate_disk(disk) -> None:
             disk_uri_in=disk['imgfile'],
             disk_uri_out=disk['uri'],
             disk_format_in=disk['imgformat'],  # Adjust if input format varies
-            disk_format_out=disk['format']
+            disk_format_out=disk['format'],
+            disk_uri_in_sha256sum = disk.get('insha256sum', None)
         )
         if 'size' in disk:
             resize_disk(
@@ -415,7 +449,8 @@ def main():
     print("\nDestroy old VM and disks")
     remove_vm(vm['name'])
     for disk_key, disk_value in { **disks, **cdroms}.items():
-        remove_disk(disk_value)
+        if not disk_value.get('insha256sum', False):
+            remove_disk(disk_value)
     if remove:
         print(f"[INFO] remove cli argument given - Exiting after remove")
         sys.exit(0)
@@ -431,7 +466,8 @@ def main():
             disk_uri_in=cdrom_value['isofile'],
             disk_uri_out=cdrom_value['uri'],
             disk_format_in="raw",
-            disk_format_out="raw"
+            disk_format_out="raw",
+            disk_uri_in_sha256sum = disk.get('insha256sum', None)
             )
 
     # Build virt-install command
@@ -603,7 +639,7 @@ def main():
         sys.exit(1)
 
     
-    subprocess_run_wrapper(["sudo", "virsh", "--connect=qemu:///system", "define", vmvirtfile], check=True)
+    subprocess_run_wrapper(["virsh", "--connect=qemu:///system", "define", vmvirtfile], check=True)
     subprocess_run_wrapper(["sudo", "virsh", "--connect=qemu:///system", "start", vm['name']], check=True)
     subprocess_run_wrapper(["virt-viewer", "--connect=qemu:///system", "--attach", vm['name']], check=True)
 

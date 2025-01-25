@@ -45,6 +45,7 @@ disks:
     # size in GiB, optional if converted from image file
     #size: 2
     imgfile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.img"
+    insha256sum: "<a sha256sum>"
     imgformat: "raw"
 
   #dummyvirtiodisk:
