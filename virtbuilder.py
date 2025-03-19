@@ -264,6 +264,7 @@ def convert_disk(disk_uri_in: str, disk_uri_out: str, disk_format_in: str, disk_
         if current_sha256sum == disk_uri_in_sha256sum:
             print(f"[INFO] The disk '{disk_uri_out}' already matches the provided SHA-256 checksum. No conversion needed.")
             return  # Early exit if checksums match
+        subprocess_run_wrapper(["sudo", "rm", disk_uri_out],check=True)
         
     try:
         subprocess_run_wrapper(
@@ -467,7 +468,7 @@ def main():
             disk_uri_out=cdrom_value['uri'],
             disk_format_in="raw",
             disk_format_out="raw",
-            disk_uri_in_sha256sum = disk.get('insha256sum', None)
+            disk_uri_in_sha256sum = cdrom_value.get('insha256sum', None)
             )
 
     # Build virt-install command
