@@ -585,6 +585,8 @@ def main():
             virtinstall_cmd.append(f"--network=network=default,mac={network['mac']},model={network.get('model', 'virtio')}")
         case "isolated":
             virtinstall_cmd.append(f"--network=network=isolated,mac={network['mac']},model={network.get('model', 'virtio')}")
+        case "open":
+            virtinstall_cmd.append(f"--network=network=open,mac={network['mac']},model={network.get('model', 'virtio')}")
         case "bridge":
             virtinstall_cmd.append(f"--network=bridge={network['parent_interface']},mac={network['mac']},model={network.get('model', 'virtio')}")
         case "macvtap":
