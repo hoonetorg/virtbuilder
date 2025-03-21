@@ -9,6 +9,9 @@ vm:
   secureboot: True
   #3d, spice, vnc, serial_console
   graphics: "spice"
+  #vga, qxl, virtio
+  #video: "qxl"
+  #suspend_and_hibernate: False
   #usbver: "2"
 
 cdroms:
@@ -45,7 +48,7 @@ disks:
     # size in GiB, optional if converted from image file
     #size: 2
     imgfile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.img"
-    insha256sum: "<a sha256sum>"
+    insha256sum: "6ca4c4b3db05b128eae24ecb33771006b59f5d6f429e671b0a1de763963ff66b"
     imgformat: "raw"
 
   #dummyvirtiodisk:
@@ -84,7 +87,7 @@ disks:
 
 network:
   #model: "e1000e"
-  # nat, isolated, bridge, macvtap, ipvtap
+  # nat, isolated, open, bridge, macvtap, ipvtap
   type: "isolated"
   mac: "52:54:00:dd:a1:0a"
   #required when backing interface is needed: bridge, macvtap, ipvtap
