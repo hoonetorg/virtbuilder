@@ -4,6 +4,7 @@ import os
 import sys
 import yaml
 import xml.etree.ElementTree as ET
+import xml.dom.minidom
 import re
 
 def subprocess_run_wrapper(command, dry_run=None, **kwargs):
@@ -365,10 +366,37 @@ def handle_vm_type(vm_type) -> None:
             print(f"[ERROR] Unknown VM type: {vm_type} - Exiting")
             sys.exit(1)
 
+def enable_s3_s4(xml_string: str) -> str:
+    qemu_uri = "http://libvirt.org/schemas/domain/qemu/1.0"
+    qemu_prefix = "qemu"
 
-def set_disk_removable(xml: str, disk) -> str:
+    ET.register_namespace(qemu_prefix, qemu_uri)
+
+    root = ET.fromstring(xml_string)
+
+    qemu_ns = f'{{{qemu_uri}}}'
+    cmdline = ET.Element(f'{qemu_ns}commandline')
+    cmdline.text = "\n    "
+    
+    for val in ['-global', 'ICH9-LPC.disable_s3=0', '-global', 'ICH9-LPC.disable_s4=0']:
+        arg = ET.Element(f'{qemu_ns}arg', {'value': val})
+        arg.tail = "\n    "
+        cmdline.append(arg)
+    
+    cmdline[-1].tail = "\n  "  # Before </qemu:commandline>
+    cmdline.tail = "\n"        # Before </domain>
+    
+    # Ensure proper indent of the <qemu:commandline> tag itself
+    if len(root):
+        root[-1].tail = "\n  "
+    
+    root.append(cmdline)
+
+    return ET.tostring(root, encoding='unicode')
+
+def set_disk_removable(xml_string: str, disk) -> str:
     print(f"[DEBUG]: disk['uri'] {disk['uri']}")
-    root = ET.fromstring(xml)
+    root = ET.fromstring(xml_string)
     
     # Find the disk_element element with the specific source file
     for disk_element in root.findall(".//disk"):
@@ -625,10 +653,15 @@ def main():
     vm_xml = split_generic_xml(vm_ret.stdout)[-1]
 
     # adapt options not supported by virt-install directly in xml
+    # suspend(s3) and hibernation(s4)
+    if vm.get("suspend_and_hibernate", False):
+        vm_xml = enable_s3_s4(xml_string = vm_xml)
+        print(vm_xml)
+
     # disk removable
     for disk_key, disk_value in disks.items():
         if disk_value.get('removable', False):
-            vm_xml = set_disk_removable(xml = vm_xml, disk = disk_value)
+            vm_xml = set_disk_removable(xml_string = vm_xml, disk = disk_value)
 
     # Write the XML to a file
     try:
