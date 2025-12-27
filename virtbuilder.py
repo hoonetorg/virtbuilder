@@ -521,8 +521,6 @@ def main():
     # BIOS
     print("\nBIOS")
     boot_snippet=""
-    if vm.get('bootmenu', False):
-        boot_snippet+=",bootmenu.enable=on"
     match vm['bios']:
         case "efi":
             boot_snippet+="--boot=uefi,firmware.feature0.name=secure-boot"
@@ -538,6 +536,8 @@ def main():
         case _:
             print(f"[ERROR] unknown bios {vm['bios']} - Exiting")
             sys.exit(1)
+    if vm.get('bootmenu', False):
+        boot_snippet+=",bootmenu.enable=on"
     
     virtinstall_cmd.append(boot_snippet)
 
