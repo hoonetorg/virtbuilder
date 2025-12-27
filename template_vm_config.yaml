@@ -1,70 +1,74 @@
 vm:
-  name: "win10"
+  name: "win11"
   vcpus: 4
   memory: 16384
-  os_variant: "win10"
+  os_variant: "win11"
   #efi or legacy
   bios: "efi"
   #required for bios efi
   secureboot: True
+  bootmenu: False
   #3d, spice, vnc, serial_console
   graphics: "spice"
   #vga, qxl, virtio
   #video: "qxl"
-  #suspend_and_hibernate: False
+  suspend_and_hibernate: True
   #usbver: "2"
 
 cdroms:
-  drivercdrom:
-    uri: "/ramdisk/win.driveriso.raw"
+  driveriso:
+    uri: "/ramdisk/win11.driveriso.raw"
     readonly: True
     isofile: "/var/lib/libvirt/images/virtio-win-0.1.266.iso"
 
-  #installcdrom:
-  #  uri: "/ramdisk/win10.installiso.raw"
+  #installiso:
+  #  uri: "/ramdisk/win11.installiso.raw"
   #  readonly: True
-  #  isofile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.iso"
+  #  isofile: "/var/lib/libvirt/images/Win11_24H2_English_x64.iso"
 
-  #unattendcrom:
-  #  uri: "/ramdisk/win.unattendiso.raw"
+  #unattendiso:
+  #  uri: "/ramdisk/win11.unattendiso.raw"
   #  readonly: True
-  #  isofile: "/var/lib/libvirt/images/win10-unattend.iso"
-
+  #  isofile: "/var/lib/libvirt/images/win11-unattend.iso"
 
 disks:
   osdisk:
-    uri: "/ramdisk/win10.osdisk.raw"
+    uri: "/ramdisk/win11.osdisk.raw"
     bus: "scsi"
     format: "raw"
     # size in GiB
     size: 60
+    serial: "osdisk"
 
   installdisk:
-    uri: "/ramdisk/win10.install.raw"
+    uri: "/ramdisk/win11.installdisk.raw"
     bus: "usb"
     format: "raw"
     readonly: True
     removable: True
     # size in GiB, optional if converted from image file
     #size: 2
-    imgfile: "/var/lib/libvirt/images/Win10_22H2_English_x64v1.img"
-    insha256sum: "6ca4c4b3db05b128eae24ecb33771006b59f5d6f429e671b0a1de763963ff66b"
+    imgfile: "/var/lib/libvirt/images/Win11_24H2_English_x64.img"
+    insha256sum: "5c1c730b0c3a3e0d2bbd6a76e5a970d1a184c69e513cb95db0060f7fa8bd93bf"
     imgformat: "raw"
+    serial: "installdisk"
 
   #dummyvirtiodisk:
-  #  uri: "/ramdisk/win10.dummyvirtiodisk.qcow2"
+  #  uri: "/ramdisk/win11.dummyvirtiodisk.qcow2"
   #  bus: "virtio"
   #  format: "qcow2"
   #  size: 1
+  #  serial: "dummyvirtiodisk"
 
   #dummyvirtioscsidisk:
-  #  uri: "/ramdisk/win10.dummyvirtioscsidisk.qcow2"
+  #  uri: "/ramdisk/win11.dummyvirtioscsidisk.qcow2"
   #  bus: "scsi"
   #  format: "qcow2"
   #  size: 1
+  #  serial: "dummyvirtioscsidisk"
 
   #driverdisk:
-  #  uri: "/ramdisk/win.driver.raw"
+  #  uri: "/ramdisk/win11.driverdisk.raw"
   #  bus: "usb"
   #  format: "raw"
   #  readonly: True
@@ -73,9 +77,10 @@ disks:
   #  #size: 2
   #  imgfile: "/var/lib/libvirt/images/virtio-win-0.1.266.iso"
   #  imgformat: "raw"
+  #  serial: "driverdisk"
 
   answerdisk:
-    uri: "/ramdisk/win.answer.raw"
+    uri: "/ramdisk/win11.answerdisk.raw"
     bus: "usb"
     format: "raw"
     readonly: True
@@ -84,12 +89,12 @@ disks:
     #size: 2
     imgfile: "/var/lib/libvirt/images/autounattend.img"
     imgformat: "raw"
+    serial: "answerdisk"
 
 network:
   #model: "e1000e"
   # nat, isolated, open, bridge, macvtap, ipvtap
   type: "isolated"
-  mac: "52:54:00:dd:a1:0a"
+  mac: "52:54:00:dd:a1:0c"
   #required when backing interface is needed: bridge, macvtap, ipvtap
   parent_interface: "enp58s0u1u3u3"
-
