@@ -520,17 +520,26 @@ def main():
 
     # BIOS
     print("\nBIOS")
+    boot_snippet=""
+    if vm.get('bootmenu', False):
+        boot_snippet+=",bootmenu.enable=on"
     match vm['bios']:
         case "efi":
+            boot_snippet+="--boot=uefi,firmware.feature0.name=secure-boot"
             if vm['secureboot']:
-                virtinstall_cmd.append("--boot=uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes")
+                #virtinstall_cmd.append("--boot=uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes")
+                boot_snippet+=",firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes"
             else:
-                virtinstall_cmd.append("--boot=uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no")
+                #virtinstall_cmd.append("--boot=uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no")
+                boot_snippet+=",firmware.feature0.enabled=no"
         case "legacy":
-            virtinstall_cmd.append("-boot=uefi=off")
+            #virtinstall_cmd.append("-boot=uefi=off")
+            boot_snippet+="-boot=uefi=off"
         case _:
             print(f"[ERROR] unknown bios {vm['bios']} - Exiting")
             sys.exit(1)
+    
+    virtinstall_cmd.append(boot_snippet)
 
     # Graphics
     print("\nGraphics")
@@ -558,10 +567,13 @@ def main():
     scsi_controller = False
     for disk_key, disk_value in disks.items():
         bus = disk_value.get('bus','scsi')
+        serial = disk_value.get('serial', False)
         disk_snippet = f"--disk=path={disk_value['uri']},format={disk_value['format']},bus={bus},cache=writethrough,driver.discard='unmap',io=threads,sparse=yes"
         #disk_snippet+=f",size={disk_value['size']}"
         if disk_value.get('readonly', False):
             disk_snippet+=",readonly=yes"
+        if serial:
+            disk_snippet+=f",serial={serial}"
         if bus == 'scsi':
             scsi_controller = True
         virtinstall_cmd.append(disk_snippet)
