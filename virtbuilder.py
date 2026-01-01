@@ -525,13 +525,10 @@ def main():
         case "efi":
             boot_snippet+="--boot=uefi,firmware.feature0.name=secure-boot"
             if vm['secureboot']:
-                #virtinstall_cmd.append("--boot=uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes")
                 boot_snippet+=",firmware.feature0.enabled=yes,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=yes"
             else:
-                #virtinstall_cmd.append("--boot=uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no")
                 boot_snippet+=",firmware.feature0.enabled=no"
         case "legacy":
-            #virtinstall_cmd.append("-boot=uefi=off")
             boot_snippet+="-boot=uefi=off"
         case _:
             print(f"[ERROR] unknown bios {vm['bios']} - Exiting")
