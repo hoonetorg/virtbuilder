@@ -10,8 +10,10 @@ vm:
   bootmenu: False
   #3d, spice, vnc, serial_console
   graphics: "spice"
-  #vga, qxl, virtio
-  #video: "qxl"
+  #vga, qxl, virtio, 
+  #to support large resolutions in vms with qxl,
+  #increase vgamem to 65536KiB 
+  video: "qxl,vgamem=65536"
   suspend_and_hibernate: True
   #usbver: "2"
 
