@@ -686,7 +686,8 @@ def main():
     
     subprocess_run_wrapper(["virsh", "--connect=qemu:///system", "define", vmvirtfile], check=True)
     subprocess_run_wrapper(["sudo", "virsh", "--connect=qemu:///system", "start", vm['name']], check=True)
-    subprocess_run_wrapper(["virt-viewer", "--connect=qemu:///system", "--attach", vm['name']], check=True)
+    # console in virt-manager (forks into the background, the script ends; SPICE with gl works there too)
+    subprocess_run_wrapper(["virt-manager", "--connect=qemu:///system", "--show-domain-console", vm['name']], check=True)
 
 
 if __name__ == "__main__":
